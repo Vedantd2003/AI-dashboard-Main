@@ -400,7 +400,7 @@ describe('research pipeline', () => {
     expect(r.status).toBe(201);
     expect(r.body.report.model).toMatch(/data-only/);
     expect(r.body.report.keyFindings.every((k: { basis: string }) => k.basis === 'calculated')).toBe(true);
-    expect(r.body.report.limitations.join(' ')).toMatch(/OPENROUTER_API_KEY/);
+    expect(r.body.report.limitations.join(' ')).toMatch(/GEMINI_API_KEY/);
   });
 
   it('reports: search, save, share link, isolation', async () => {

@@ -20,7 +20,7 @@ export function researchRouter(ctx: AppContext) {
   r.get('/capabilities', (_req, res) => {
     const d = ctx.deps;
     res.json({
-      llm: d.llm ? { configured: true, provider: d.llm.name, model: d.llm.model } : { configured: false, hint: 'Set OPENROUTER_API_KEY to enable AI analysis. Without it, reports contain only observed and calculated data.' },
+      llm: d.llm ? { configured: true, provider: d.llm.name, model: d.llm.model } : { configured: false, hint: 'Set GEMINI_API_KEY (or OPENROUTER_API_KEY) to enable AI analysis. Without it, reports contain only observed and calculated data.' },
       marketData: !!d.market,
       news: !!d.fundamentals,
       filings: !!d.sec,

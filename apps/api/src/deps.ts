@@ -4,6 +4,7 @@ import type { FetchLike } from './lib/http.js';
 import { safeFetch as realSafeFetch } from './lib/safeFetch.js';
 import { DevOutbox, ResendProvider, type EmailProvider } from './providers/email.js';
 import { FinnhubProvider } from './providers/finnhub.js';
+import { GeminiProvider } from './providers/gemini.js';
 import { OpenRouterProvider, type LlmProvider } from './providers/llm.js';
 import { SecEdgarClient } from './providers/sec.js';
 import { TwelveDataProvider } from './providers/twelveData.js';
@@ -30,7 +31,9 @@ export function buildDeps(config: Config, logger: Logger, fetchImpl?: FetchLike)
     market: config.TWELVE_DATA_API_KEY ? new TwelveDataProvider(config.TWELVE_DATA_API_KEY, fetchImpl) : null,
     fundamentals: config.FINNHUB_API_KEY ? new FinnhubProvider(config.FINNHUB_API_KEY, fetchImpl) : null,
     sec: config.SEC_USER_AGENT ? new SecEdgarClient(config.SEC_USER_AGENT, fetchImpl) : null,
-    llm: config.OPENROUTER_API_KEY
+    llm: config.GEMINI_API_KEY
+      ? new GeminiProvider(config.GEMINI_API_KEY, config.GEMINI_MODEL, fetchImpl)
+      : config.OPENROUTER_API_KEY
       ? new OpenRouterProvider(config.OPENROUTER_API_KEY, config.OPENROUTER_MODEL, config.OPENROUTER_BASE_URL, config.APP_BASE_URL, fetchImpl)
       : null,
     email: config.RESEND_API_KEY && config.EMAIL_FROM ? new ResendProvider(config.RESEND_API_KEY, config.EMAIL_FROM, fetchImpl) : null,

@@ -164,7 +164,7 @@ describe('research helpers', () => {
     const r = dataOnlyReport(['A'], { A: { start: '2026-01-01', end: '2026-06-01', observations: 100, lastClose: 10, dailyChange: 0, periodReturn: 0.1, annualizedVolatility: 0.2, maxDrawdown: -0.1, rsi14: 50, sma50: 10, sma200: null } }, []);
     expect(r.keyFindings.every((c) => c.basis === 'calculated')).toBe(true);
     expect(r.evidenceStrength).toBe('weak');
-    expect(r.limitations[0]).toMatch(/OPENROUTER_API_KEY/);
+    expect(r.limitations[0]).toMatch(/GEMINI_API_KEY/);
   });
 });
 
@@ -198,5 +198,72 @@ describe('TtlCache', () => {
     expect(c.get('b', 3)).toBeUndefined();
     expect(c.get('a', 3)).toBe(1);
     expect(c.get('a', 2000)).toBeUndefined();
+  });
+});
+
+describe('Gemini adapter', () => {
+  const req = { system: 'sys', user: 'question', schemaName: 'r', jsonSchema: { type: 'object', properties: { a: { type: 'string' } } } };
+  const ok = (text: string) => json({ candidates: [{ content: { parts: [{ text }] } }], usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3 }, modelVersion: 'gemini-x' });
+
+  it('sends key in header, system instruction and strict JSON schema', async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const { GeminiProvider } = await import('../src/providers/gemini.js');
+    const g = new GeminiProvider('KEY', 'gemini-3.1-flash-lite', async (u, init) => {
+      calls.push({ url: String(u), init: init! });
+      return ok('{"a":"b"}');
+    });
+    const r = await g.complete(req);
+    expect(r.content).toBe('{"a":"b"}');
+    expect(r.usage).toEqual({ promptTokens: 5, completionTokens: 3 });
+    expect(calls[0]!.url).toContain('/models/gemini-3.1-flash-lite:generateContent');
+    expect(calls[0]!.url).not.toContain('KEY');
+    expect((calls[0]!.init.headers as Record<string, string>)['x-goog-api-key']).toBe('KEY');
+    const body = JSON.parse(String(calls[0]!.init.body));
+    expect(body.systemInstruction.parts[0].text).toBe('sys');
+    expect(body.generationConfig).toMatchObject({ responseMimeType: 'application/json', responseJsonSchema: req.jsonSchema });
+  });
+
+  it('falls back to another model on 404 and to plain JSON mode on 400', async () => {
+    const urls: string[] = [];
+    const bodies: Record<string, unknown>[] = [];
+    const { GeminiProvider } = await import('../src/providers/gemini.js');
+    const g = new GeminiProvider('KEY', 'retired-model', async (u, init) => {
+      urls.push(String(u));
+      const b = JSON.parse(String(init!.body));
+      bodies.push(b);
+      if (String(u).includes('retired-model')) return json({ error: { message: 'not found' } }, 404);
+      if (b.generationConfig.responseJsonSchema) return json({ error: { message: 'schema unsupported' } }, 400);
+      return ok('{"a":"b"}');
+    });
+    await expect(g.complete(req)).resolves.toMatchObject({ content: '{"a":"b"}' });
+    expect(urls[0]).toContain('retired-model');
+    expect(urls.at(-1)).toContain('gemini-3.1-flash-lite');
+    expect(bodies.at(-1)!.generationConfig).not.toHaveProperty('responseJsonSchema');
+    expect(JSON.stringify(bodies.at(-1))).toContain('conforms to this JSON Schema');
+  });
+
+  it('surfaces auth and quota errors instead of hiding them', async () => {
+    const { GeminiProvider } = await import('../src/providers/gemini.js');
+    const g = new GeminiProvider('BAD', 'gemini-3.1-flash-lite', async () => json({ error: { message: 'API key not valid' } }, 400));
+    // 400 in strict mode → plain-mode retry → still 400 → error surfaces with provider message
+    await expect(g.complete(req)).rejects.toThrow(/API key not valid/);
+    const q = new GeminiProvider('K', 'gemini-3.1-flash-lite', async () => json({ error: { message: 'quota' } }, 403));
+    await expect(q.complete(req)).rejects.toThrow(/403/);
+  });
+
+  it('reports safety blocks and empty completions', async () => {
+    const { GeminiProvider } = await import('../src/providers/gemini.js');
+    const b = new GeminiProvider('K', 'm', async () => json({ promptFeedback: { blockReason: 'SAFETY' } }));
+    await expect(b.complete(req)).rejects.toThrow(/SAFETY/);
+    const e = new GeminiProvider('K', 'm', async () => json({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [] } }] }));
+    await expect(e.complete(req)).rejects.toThrow(/MAX_TOKENS/);
+  });
+
+  it('is preferred over OpenRouter when both keys are set', async () => {
+    const { buildDeps } = await import('../src/deps.js');
+    const { createLogger } = await import('../src/logger.js');
+    const d = buildDeps(loadConfig({ NODE_ENV: 'test', GEMINI_API_KEY: 'g', OPENROUTER_API_KEY: 'o' }), createLogger('silent'));
+    expect(d.llm?.name).toBe('Google Gemini');
+    expect(d.llm?.model).toBe('gemini-3.1-flash-lite');
   });
 });

@@ -23,7 +23,9 @@ const envSchema = z.object({
   FINNHUB_API_KEY: optional,
   SEC_USER_AGENT: optional,
 
-  // LLM
+  // LLM — Gemini is used when GEMINI_API_KEY is set, otherwise OpenRouter
+  GEMINI_API_KEY: optional,
+  GEMINI_MODEL: z.string().default('gemini-3.1-flash-lite'),
   OPENROUTER_API_KEY: optional,
   OPENROUTER_MODEL: z.string().default('openai/gpt-4o-mini'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
@@ -84,7 +86,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       marketData: !!c.TWELVE_DATA_API_KEY,
       news: !!c.FINNHUB_API_KEY,
       filings: !!c.SEC_USER_AGENT,
-      llm: !!c.OPENROUTER_API_KEY,
+      llm: !!c.GEMINI_API_KEY || !!c.OPENROUTER_API_KEY,
       email: !!c.RESEND_API_KEY && !!c.EMAIL_FROM,
       n8n: !!c.N8N_WEBHOOK_SECRET,
       redis: !!c.REDIS_URL,

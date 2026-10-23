@@ -147,7 +147,7 @@ export function dataOnlyReport(symbols: string[], summaries: Record<string, Seri
     risks: [],
     uncertainties: [],
     followUpQuestions: [],
-    limitations: ['AI analysis unavailable: OPENROUTER_API_KEY is not configured.', ...limitations],
+    limitations: ['AI analysis unavailable: no AI model is configured (GEMINI_API_KEY or OPENROUTER_API_KEY).', ...limitations],
     evidenceStrength: 'weak',
   };
 }

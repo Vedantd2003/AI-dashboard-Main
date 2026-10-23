@@ -46,7 +46,7 @@ the claim is marked **unverified** instead of being presented as fact.
                  └──────────────────────────────┬────────────────────────────────────────┘
           MongoDB Atlas ◀───────────────────────┤
           Twelve Data · Finnhub · SEC EDGAR ◀───┤   all provider keys stay server-side
-          OpenRouter (LLM) · Resend · webhooks ◀┘
+          Gemini or OpenRouter (LLM) · Resend · webhooks ◀┘
 ```
 
 - `packages/shared`: Zod contracts, deterministic analytics (returns, volatility, SMA/EMA, RSI, drawdown,
@@ -61,7 +61,7 @@ so two onrender subdomains are cross-site). Details: [docs/SYSTEM_ARCHITECTURE.m
 ## Technology
 
 Next.js 16 · React 19 · TypeScript (strict) · Tailwind CSS 4 · TanStack Query · React Hook Form + Zod ·
-Lightweight Charts · Framer Motion · Radix Dialog · Lucide · Express 5 · Mongoose 9 · Argon2id · pino · helmet ·
+Google Gemini · Lightweight Charts · Framer Motion · Radix Dialog · Lucide · Express 5 · Mongoose 9 · Argon2id · pino · helmet ·
 express-rate-limit · BullMQ (optional) · node-cron · OpenAPI 3 / Swagger UI · Vitest · Testing Library · Supertest ·
 mongodb-memory-server · Playwright.
 
@@ -100,7 +100,8 @@ See [.env.example](.env.example) for the full list with notes.
 | `TWELVE_DATA_API_KEY` | API | optional | Quotes, history, search |
 | `FINNHUB_API_KEY` | API | optional | News, profile, metrics |
 | `SEC_USER_AGENT` | API | optional | Enables SEC EDGAR (`"AlphaPulse you@example.com"`) |
-| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | API | optional | AI analyst |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | API | optional | AI analyst via Google Gemini (preferred when set) |
+| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | API | optional | AI analyst via OpenRouter (alternative) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | API | optional | Email delivery, verification, password reset |
 | `N8N_WEBHOOK_SECRET`, `N8N_BASE_URL` | API | optional | Signed n8n triggers |
 | `SCHEDULER_ENABLED` | API | optional | Built-in cron (needs an always-on instance) |

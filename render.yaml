@@ -53,8 +53,12 @@ services:
         sync: false
       - key: SEC_USER_AGENT
         sync: false # "AlphaPulse your-email@example.com"
+      - key: GEMINI_API_KEY
+        sync: false # preferred AI provider
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
       - key: OPENROUTER_API_KEY
-        sync: false
+        sync: false # alternative AI provider
       - key: OPENROUTER_MODEL
         value: openai/gpt-4o-mini
       - key: RESEND_API_KEY
