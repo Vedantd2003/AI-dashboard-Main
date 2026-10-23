@@ -64,7 +64,7 @@ export function marketsRouter(ctx: AppContext) {
         metricsError: metrics[i]!.error,
       })),
       correlation: corr,
-      provider: { history: 'Twelve Data', metrics: 'Finnhub' },
+      provider: { history: [...new Set(results.map((x) => x.data?.provider).filter(Boolean))].join(', ') || (ctx.deps.market?.name ?? 'Twelve Data'), metrics: 'Finnhub' },
     });
   });
 

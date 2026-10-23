@@ -117,6 +117,15 @@ describe('Twelve Data adapter', () => {
 });
 
 describe('Finnhub adapter', () => {
+  it('maps daily candles and treats s:no_data as not found', async () => {
+    const ok = new FinnhubProvider('k', async () => json({ s: 'ok', t: [1760000000, 1760086400], o: [1, 2], h: [1, 2], l: [1, 2], c: [10, 11], v: [5, 6] }));
+    const h = await ok.getHistory('MSFT', 10);
+    expect(h.bars.map((b) => b.close)).toEqual([10, 11]);
+    expect(h).toMatchObject({ provider: 'Finnhub', freshness: 'eod' });
+    const none = new FinnhubProvider('k', async () => json({ s: 'no_data' }));
+    await expect(none.getHistory('ZZZZ', 10)).rejects.toThrow(/No price history/);
+  });
+
   it('maps /quote and rejects the all-zero answer for unknown symbols', async () => {
     const p = new FinnhubProvider('k', async (url) =>
       json(String(url).includes('ZZZZ') ? { c: 0, d: null, dp: null, h: 0, l: 0, o: 0, pc: 0, t: 0 } : { c: 210, d: 2, dp: 0.96, h: 211, l: 207, o: 208, pc: 208, t: 1760000000 }),

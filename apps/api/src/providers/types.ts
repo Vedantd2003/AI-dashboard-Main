@@ -122,4 +122,6 @@ export interface FundamentalsProvider {
   getMarketNews(): Promise<NewsItem[]>;
   /** Optional backup quote source, used when the primary market-data provider fails. */
   getQuote?(symbol: string): Promise<Quote>;
+  /** Optional backup daily history (Finnhub /stock/candle; not included in every Finnhub plan). */
+  getHistory?(symbol: string, outputSize: number): Promise<History>;
 }

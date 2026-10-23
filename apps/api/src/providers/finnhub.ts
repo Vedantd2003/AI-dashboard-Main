@@ -1,6 +1,6 @@
 import { upstream } from '../lib/errors.js';
 import { httpJson, type FetchLike } from '../lib/http.js';
-import type { CompanyProfile, FinancialMetrics, FundamentalsProvider, Metric, NewsItem, Quote } from './types.js';
+import type { CompanyProfile, FinancialMetrics, FundamentalsProvider, Metric, NewsItem, Quote, History } from './types.js';
 
 /**
  * Finnhub (https://finnhub.io/docs/api). Free key: ~60 calls/min, personal / non-commercial use.
@@ -66,6 +66,24 @@ export class FinnhubProvider implements FundamentalsProvider {
       asOf: new Date(q.t * 1000).toISOString(),
       retrievedAt: new Date().toISOString(),
     };
+  }
+
+  /** Daily candles. Finnhub answers 403 when the key's plan does not include candles. */
+  async getHistory(symbol: string, outputSize: number): Promise<History> {
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - Math.ceil(outputSize * 1.5 + 10) * 86_400;
+    const r = await this.get<{ s: string; t?: number[]; o?: number[]; h?: number[]; l?: number[]; c?: number[]; v?: number[] }>('/stock/candle', {
+      symbol,
+      resolution: 'D',
+      from: String(from),
+      to: String(to),
+    });
+    if (r.s !== 'ok' || !r.t?.length) throw upstream(this.name, `No price history for ${symbol}`, 404);
+    const bars = r.t
+      .map((t, i) => ({ date: new Date(t * 1000).toISOString().slice(0, 10), open: r.o?.[i] ?? null, high: r.h?.[i] ?? null, low: r.l?.[i] ?? null, close: r.c?.[i] as number, volume: r.v?.[i] ?? null }))
+      .filter((b) => Number.isFinite(b.close))
+      .slice(-outputSize);
+    return { symbol, interval: '1day', currency: 'USD', exchangeTimezone: 'America/New_York', bars, freshness: 'eod', provider: this.name, asOf: bars.at(-1)?.date ?? null, retrievedAt: new Date().toISOString() };
   }
 
   async getProfile(symbol: string): Promise<CompanyProfile> {

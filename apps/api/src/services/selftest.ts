@@ -30,9 +30,9 @@ export async function runSelfTest(ctx: AppContext) {
       const q = await m.quote('AAPL');
       return `${q.provider}: price ${q.price} ${q.currency} asOf ${q.asOf} (${q.freshness})`;
     });
-    await check('twelve_data.history MSFT 1M', async () => {
+    await check('markets.history MSFT 1M (Twelve Data, Finnhub backup)', async () => {
       const h = await m.history('MSFT', '1M');
-      return `${h.bars.length} bars, last ${h.bars.at(-1)?.date}`;
+      return `${h.provider}: ${h.bars.length} bars, last ${h.bars.at(-1)?.date}`;
     });
     await check('markets.overview', async () => JSON.stringify(await m.overview()).slice(0, 200));
   }
@@ -42,6 +42,7 @@ export async function runSelfTest(ctx: AppContext) {
       return `${p.name} · ${p.industry}`;
     });
     await check('finnhub.metrics NVDA', async () => `${(await m.metrics('NVDA')).metrics.length} metrics`);
+    if (d.fundamentals.getHistory) await check('finnhub.candles MSFT (diagnostic)', async () => `${(await d.fundamentals!.getHistory!('MSFT', 20)).bars.length} bars`);
     await check('finnhub.market_news', async () => `${(await d.fundamentals!.getMarketNews()).length} headlines`);
   }
   if (d.sec) {

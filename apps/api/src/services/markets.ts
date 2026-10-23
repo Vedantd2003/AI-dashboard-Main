@@ -127,9 +127,23 @@ export class MarketService {
   }
 
   async history(symbol: string, range: HistoryRange): Promise<History & { range: HistoryRange; summary: ReturnType<typeof summarizeSeries> }> {
-    const m = this.requireMarket();
+    const m = this.deps.market;
+    const f = this.deps.fundamentals;
+    const backup = f?.getHistory ? (n: number) => this.track(f.name, () => f.getHistory!(symbol, n)) : null;
+    if (!m && !backup) this.requireMarket();
     const size = OUTPUT_SIZE[range];
-    const full = await this.cached<History>(`h:${symbol}:${size}`, TTL.history, () => this.track(m.name, () => m.getHistory(symbol, size)));
+    const full = await this.cached<History>(`h:${symbol}:${size}`, TTL.history, async () => {
+      if (!m) return backup!(size);
+      try {
+        return await this.track(m.name, () => m.getHistory(symbol, size));
+      } catch (e) {
+        if (!backup || (e instanceof AppError && e.status === 404)) throw e;
+        // Keep the primary provider's (clearer) error if the backup isn't entitled either.
+        return backup(size).catch(() => {
+          throw e;
+        });
+      }
+    });
     const start = rangeStart(range, this.deps.now()).toISOString().slice(0, 10);
     const bars = full.bars.filter((b) => b.date >= start);
     return { ...full, bars, range, summary: summarizeSeries(bars.map((b) => ({ date: b.date, close: b.close }))) };
