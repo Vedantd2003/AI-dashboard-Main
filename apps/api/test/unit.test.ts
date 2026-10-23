@@ -99,6 +99,15 @@ describe('Twelve Data adapter', () => {
     const p = new TwelveDataProvider('k', async () => json({ status: 'error', code: 404, message: '**symbol** not found: ZZZZ' }));
     await expect(p.getQuote('ZZZZ')).rejects.toThrow(/not found/);
   });
+  it('falls back to the apikey query parameter when header auth gets 401, and trims the key', async () => {
+    const seen: string[] = [];
+    const p = new TwelveDataProvider(' k1 \n', async (url) => {
+      seen.push(String(url));
+      return String(url).includes('apikey=k1') ? json({ symbol: 'AAPL', close: '1', previous_close: '1', timestamp: 1 }) : new Response('{"code":401}', { status: 401 });
+    });
+    await expect(p.getQuote('AAPL')).resolves.toMatchObject({ price: 1 });
+    expect(seen).toHaveLength(2);
+  });
   it('drops non-numeric bars', async () => {
     const p = new TwelveDataProvider('k', async () => json({ meta: { symbol: 'X', currency: 'USD' }, values: [{ datetime: '2026-01-02', close: '10' }, { datetime: '2026-01-03', close: '' }] }));
     const h = await p.getHistory('X', 10);

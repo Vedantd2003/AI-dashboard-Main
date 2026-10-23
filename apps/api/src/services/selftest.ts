@@ -23,6 +23,8 @@ export async function runSelfTest(ctx: AppContext) {
   const m = ctx.markets;
   const d = ctx.deps;
 
+  const key = d.config.TWELVE_DATA_API_KEY ?? '';
+  logger.info({ selfTest: { twelveDataKey: { length: key.length, trimmedLength: key.trim().length, hex32: /^[0-9a-f]{32}$/i.test(key.trim()) } } }, 'self-test: Twelve Data key shape (value not logged)');
   if (d.market) {
     await check('twelve_data.quote AAPL', async () => {
       const q = await m.quote('AAPL');

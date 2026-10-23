@@ -28,18 +28,29 @@ export class TwelveDataProvider implements MarketDataProvider {
   readonly capabilities = { quote: true, history: true, search: true, marketState: true, exchanges: ['NASDAQ', 'NYSE', 'AMEX', 'BATS'] };
 
   constructor(
-    private readonly apiKey: string,
+    apiKey: string,
     private readonly fetchImpl?: FetchLike,
-  ) {}
+  ) {
+    this.apiKey = apiKey.trim();
+  }
+  private readonly apiKey: string;
 
   private async get<T>(path: string, params: Record<string, string | number>): Promise<T> {
     const u = new URL(BASE + path);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
-    const data = await httpJson<T | TdError>(u.toString(), {
-      provider: this.name,
-      fetchImpl: this.fetchImpl,
-      init: { headers: { Authorization: `apikey ${this.apiKey}` } },
-    });
+    let data: T | TdError;
+    try {
+      data = await httpJson<T | TdError>(u.toString(), {
+        provider: this.name,
+        fetchImpl: this.fetchImpl,
+        init: { headers: { Authorization: `apikey ${this.apiKey}` } },
+      });
+    } catch (e) {
+      // Some plans/edge nodes only honour the query parameter. Retry once that way; the URL is never logged.
+      if (!/returned 401/.test((e as Error).message)) throw e;
+      u.searchParams.set('apikey', this.apiKey);
+      data = await httpJson<T | TdError>(u.toString(), { provider: this.name, fetchImpl: this.fetchImpl, retries: 0 });
+    }
     if (isErr(data)) {
       if (data.code === 429) throw new RateLimitedError(this.name, 60);
       throw upstream(this.name, data.message || `error ${data.code}`, data.code === 404 || data.code === 400 ? 404 : 502);
