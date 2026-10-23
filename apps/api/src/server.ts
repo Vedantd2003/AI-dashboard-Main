@@ -5,6 +5,7 @@ import { loadConfig } from './config.js';
 import { buildDeps } from './deps.js';
 import { createLogger } from './logger.js';
 import { syncAllIndexes } from './models/index.js';
+import { runSelfTest } from './services/selftest.js';
 import { ensureWorkflowDefinitions } from './services/workflows.js';
 
 async function main() {
@@ -27,6 +28,7 @@ async function main() {
   const app = createApp(ctx);
   const server = app.listen(config.PORT, () => {
     logger.info({ port: config.PORT, integrations: config.integrations, queue: ctx.dispatcher.mode, scheduler: !!ctx.scheduler }, 'AlphaPulse API listening');
+    if (process.env.SELF_TEST_ON_BOOT === 'true') void runSelfTest(ctx).catch((e: Error) => logger.error({ err: e.message }, 'self-test crashed'));
   });
 
   const shutdown = async (sig: string) => {

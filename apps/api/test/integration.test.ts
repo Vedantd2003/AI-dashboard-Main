@@ -3,6 +3,7 @@ import request from 'supertest';
 import { signPayload } from '../src/lib/crypto.js';
 import { Alert, AlertEvent, AuditEvent, Notification, ResearchReport, ResearchRun, Session, SourceDocument, User, WorkflowDefinition, WorkflowExecution } from '../src/models/index.js';
 import { upsertSource } from '../src/services/ingestion.js';
+import { runSelfTest } from '../src/services/selftest.js';
 import { buildTestApp, client, FIXTURE_NOW, registered, resetDb, startDb, stopDb, type TestApp } from './helpers.js';
 
 let t: TestApp;
@@ -593,5 +594,21 @@ describe('ingestion concurrency', () => {
     const docs = await Promise.all(Array.from({ length: 12 }, () => upsertSource(input)));
     expect(new Set(docs.map((d) => String(d!._id))).size).toBe(1);
     expect(await SourceDocument.countDocuments()).toBe(1);
+  });
+});
+
+describe('boot self-test', () => {
+  it('checks each configured provider plus a full research run, then removes its records', async () => {
+    const report = { executiveSummary: 'AAPL data summary.', keyFindings: [{ text: 'Shares moved over the year.', basis: 'calculated', citations: [] }], bullishFactors: [], bearishFactors: [], risks: [], uncertainties: [], followUpQuestions: [], limitations: [], evidenceStrength: 'weak' };
+    t.llm.responses.length = 0;
+    t.llm.responses.push('{"ok":true}', JSON.stringify(report));
+    const before = t.llm.requests.length;
+    const results = await runSelfTest(t.ctx);
+    const failed = results.filter((r) => !r.ok);
+    expect(failed.filter((f) => !f.check.startsWith('sec.'))).toEqual([]);
+    expect(t.llm.requests.length - before).toBe(2);
+    expect(results.map((r) => r.check)).toContain('research.run AAPL (full pipeline)');
+    expect(await ResearchRun.countDocuments({ userId: null })).toBe(0);
+    expect(await ResearchReport.countDocuments({ userId: null })).toBe(0);
   });
 });
