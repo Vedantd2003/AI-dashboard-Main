@@ -28,6 +28,14 @@ export function marketsRouter(ctx: AppContext) {
     res.json(await m.overview());
   });
 
+  /** Batch quotes for dashboard charts (2–25 symbols). Individual failures come back as `error`, never as a guessed price. */
+  r.get('/quotes', async (req, res) => {
+    const { symbols } = query(req, z.object({ symbols: z.string().max(300) }));
+    const list = [...new Set(symbols.split(',').filter(Boolean).map((s) => symbolSchema.parse(s.trim().toUpperCase())))];
+    if (!list.length || list.length > 25) throw badRequest('Provide 1–25 symbols');
+    res.json({ items: await m.quotes(list), retrievedAt: new Date().toISOString() });
+  });
+
   r.get('/news', async (_req, res) => {
     const news = await m.marketNews();
     res.json({ items: news, provider: 'Finnhub', retrievedAt: new Date().toISOString() });

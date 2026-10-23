@@ -1,3 +1,4 @@
+import { DASHBOARD_WIDGETS } from '@alphapulse/shared';
 import { Schema, model, type InferSchemaType, type Types } from 'mongoose';
 
 const notificationPrefs = new Schema(
@@ -22,7 +23,7 @@ const userSchema = new Schema(
     timezone: { type: String, default: 'UTC' },
     dashboardWidgets: {
       type: [String],
-      default: ['market', 'watchlists', 'headlines', 'research', 'alerts', 'workflows', 'health'],
+      default: () => [...DASHBOARD_WIDGETS],
     },
     notificationPrefs: { type: notificationPrefs, default: () => ({}) },
     unsubscribeToken: { type: String, select: false },

@@ -26,7 +26,8 @@ class FixtureMarket extends FakeMarket {
     const q = await super.getQuote(symbol);
     const price = bars.at(-1)!.close;
     const prev = bars.at(-2)!.close;
-    return { ...q, name: `${symbol} (fixture)`, price, previousClose: prev, change: price - prev, changePct: price / prev - 1, provider: NAME };
+    const last = bars.at(-1)!;
+    return { ...q, name: `${symbol} (fixture)`, price, open: last.open, high: last.high, low: last.low, previousClose: prev, change: price - prev, changePct: price / prev - 1, provider: NAME };
   }
   override async getHistory(symbol: string, size: number) {
     const h = await super.getHistory(symbol, size);

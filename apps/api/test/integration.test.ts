@@ -628,3 +628,16 @@ describe('quote fallback', () => {
     }
   });
 });
+
+describe('batch quotes', () => {
+  it('returns quotes per symbol and reports failures without guessing', async () => {
+    const { c } = await registered(t.app);
+    t.market.failing.add('BADX');
+    const r = await c.get('/markets/quotes?symbols=aapl,BADX,AAPL');
+    expect(r.status).toBe(200);
+    expect(r.body.items.map((x: { symbol: string }) => x.symbol)).toEqual(['AAPL', 'BADX']);
+    expect(r.body.items[1]).toMatchObject({ quote: null });
+    expect((await c.get('/markets/quotes?symbols=')).status).toBe(400);
+    t.market.failing.delete('BADX');
+  });
+});

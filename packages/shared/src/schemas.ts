@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { SYMBOL_RE } from './symbols.js';
 
 // ───────────────────────── primitives ─────────────────────────
+export const DASHBOARD_WIDGETS = ['pulse', 'market', 'movers', 'performance', 'evidence', 'allocation', 'activity', 'watchlists', 'headlines', 'research', 'alerts', 'workflows', 'health'] as const;
+
 export const symbolSchema = z
   .string()
   .trim()
@@ -48,7 +50,7 @@ export const notificationPrefsSchema = z.object({
 export const updateSettingsSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   timezone: z.string().max(64).optional(),
-  dashboardWidgets: z.array(z.enum(['market', 'watchlists', 'headlines', 'research', 'alerts', 'workflows', 'health'])).max(10).optional(),
+  dashboardWidgets: z.array(z.enum(DASHBOARD_WIDGETS)).max(20).optional(),
   notificationPrefs: notificationPrefsSchema.partial().optional(),
 });
 

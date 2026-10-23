@@ -6,6 +6,9 @@ export interface Quote {
   exchange: string | null;
   currency: string | null;
   price: number | null;
+  open?: number | null;
+  high?: number | null;
+  low?: number | null;
   previousClose: number | null;
   change: number | null;
   changePct: number | null;

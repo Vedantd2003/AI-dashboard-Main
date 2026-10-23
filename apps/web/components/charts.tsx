@@ -5,7 +5,8 @@ import { AreaSeries, ColorType, CrosshairMode, LineSeries, createChart, type ICh
 import { cx, money, num, pct } from '@/lib/format';
 
 const C = { signal: '#3cc8c0', gold: '#c9a45c', info: '#6fa3d9', line: '#22304a', ink3: '#8a90a0', up: '#3fb68b', down: '#e06c6c' };
-export const SERIES_COLORS = ['#3cc8c0', '#c9a45c', '#6fa3d9', '#b48ead', '#e0a96d', '#7fb3b0'];
+// Validated categorical palette for the dark surface (see components/dashboard-charts.tsx VIZ).
+export const SERIES_COLORS = ['#1f9e96', '#d9702b', '#3987e5', '#c98500', '#d55181', '#9085e9'];
 
 const toTime = (d: string) => (Date.parse(`${d.slice(0, 10)}T00:00:00Z`) / 1000) as UTCTimestamp;
 
