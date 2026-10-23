@@ -1,5 +1,6 @@
+import { upstream } from '../lib/errors.js';
 import { httpJson, type FetchLike } from '../lib/http.js';
-import type { CompanyProfile, FinancialMetrics, FundamentalsProvider, Metric, NewsItem } from './types.js';
+import type { CompanyProfile, FinancialMetrics, FundamentalsProvider, Metric, NewsItem, Quote } from './types.js';
 
 /**
  * Finnhub (https://finnhub.io/docs/api). Free key: ~60 calls/min, personal / non-commercial use.
@@ -38,6 +39,33 @@ export class FinnhubProvider implements FundamentalsProvider {
     const u = new URL(BASE + path);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     return httpJson<T>(u.toString(), { provider: this.name, fetchImpl: this.fetchImpl, init: { headers: { 'X-Finnhub-Token': this.apiKey } } });
+  }
+
+  /** Finnhub /quote (free tier, US equities). Fields: c current, pc previous close, d change, dp change %, t epoch s. */
+  async getQuote(symbol: string): Promise<Quote> {
+    const q = await this.get<Record<string, number | null>>('/quote', { symbol });
+    const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    // Finnhub answers unknown symbols with all-zero fields rather than an error.
+    if (!n(q.c) || !q.t) throw upstream(this.name, `No quote for ${symbol}`, 404);
+    return {
+      symbol,
+      name: null,
+      exchange: null,
+      currency: 'USD',
+      price: n(q.c),
+      open: n(q.o),
+      high: n(q.h),
+      low: n(q.l),
+      previousClose: n(q.pc),
+      change: n(q.d),
+      changePct: n(q.dp) === null ? null : n(q.dp)! / 100,
+      volume: null,
+      isMarketOpen: null,
+      freshness: 'delayed',
+      provider: this.name,
+      asOf: new Date(q.t * 1000).toISOString(),
+      retrievedAt: new Date().toISOString(),
+    };
   }
 
   async getProfile(symbol: string): Promise<CompanyProfile> {

@@ -49,7 +49,10 @@ export class TwelveDataProvider implements MarketDataProvider {
       // Some plans/edge nodes only honour the query parameter. Retry once that way; the URL is never logged.
       if (!/returned 401/.test((e as Error).message)) throw e;
       u.searchParams.set('apikey', this.apiKey);
-      data = await httpJson<T | TdError>(u.toString(), { provider: this.name, fetchImpl: this.fetchImpl, retries: 0 });
+      data = await httpJson<T | TdError>(u.toString(), { provider: this.name, fetchImpl: this.fetchImpl, retries: 0 }).catch((e2: Error) => {
+        if (/returned 401/.test(e2.message)) throw upstream(this.name, 'Twelve Data rejected the API key (401). Price history and charts are unavailable until TWELVE_DATA_API_KEY is replaced with a valid key.');
+        throw e2;
+      });
     }
     if (isErr(data)) {
       if (data.code === 429) throw new RateLimitedError(this.name, 60);

@@ -120,4 +120,6 @@ export interface FundamentalsProvider {
   getMetrics(symbol: string): Promise<FinancialMetrics>;
   getCompanyNews(symbol: string, from: string, to: string): Promise<NewsItem[]>;
   getMarketNews(): Promise<NewsItem[]>;
+  /** Optional backup quote source, used when the primary market-data provider fails. */
+  getQuote?(symbol: string): Promise<Quote>;
 }

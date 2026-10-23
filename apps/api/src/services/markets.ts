@@ -95,8 +95,22 @@ export class MarketService {
   }
 
   quote(symbol: string): Promise<Quote> {
-    const m = this.requireMarket();
-    return this.cached(`q:${symbol}`, TTL.quote, () => this.track(m.name, () => m.getQuote(symbol)));
+    const m = this.deps.market;
+    const f = this.deps.fundamentals;
+    const backup = f?.getQuote ? () => this.track(f.name, () => f.getQuote!(symbol)) : null;
+    if (!m && !backup) this.requireMarket();
+    return this.cached(`q:${symbol}`, TTL.quote, async () => {
+      if (!m) return backup!();
+      try {
+        return await this.track(m.name, () => m.getQuote(symbol));
+      } catch (e) {
+        // Primary provider down, rate-limited or misconfigured: use the backup source rather than show nothing.
+        if (!backup || (e instanceof AppError && e.status === 404)) throw e;
+        return backup().catch(() => {
+          throw e;
+        });
+      }
+    });
   }
 
   /** Quotes for many symbols; individual failures are returned as errors rather than failing the batch. */

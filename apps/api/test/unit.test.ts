@@ -117,6 +117,16 @@ describe('Twelve Data adapter', () => {
 });
 
 describe('Finnhub adapter', () => {
+  it('maps /quote and rejects the all-zero answer for unknown symbols', async () => {
+    const p = new FinnhubProvider('k', async (url) =>
+      json(String(url).includes('ZZZZ') ? { c: 0, d: null, dp: null, h: 0, l: 0, o: 0, pc: 0, t: 0 } : { c: 210, d: 2, dp: 0.96, h: 211, l: 207, o: 208, pc: 208, t: 1760000000 }),
+    );
+    const q = await p.getQuote('AAPL');
+    expect(q).toMatchObject({ price: 210, previousClose: 208, provider: 'Finnhub', freshness: 'delayed' });
+    expect(q.changePct).toBeCloseTo(0.0096, 6);
+    await expect(p.getQuote('ZZZZ')).rejects.toThrow(/No quote/);
+  });
+
   it('converts market cap from millions and keeps metric periods', async () => {
     const p = new FinnhubProvider('k', async (u) =>
       String(u).includes('profile2') ? json({ name: 'Apple', marketCapitalization: 3_000_000, shareOutstanding: 15_000 }) : json({ metric: { peTTM: 30, pbQuarterly: 40, junk: 'x' } }),

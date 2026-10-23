@@ -612,3 +612,19 @@ describe('boot self-test', () => {
     expect(await ResearchReport.countDocuments({ userId: null })).toBe(0);
   });
 });
+
+describe('quote fallback', () => {
+  it('uses the fundamentals provider for quotes when the primary market provider fails', async () => {
+    t.ctx.markets.clearCache();
+    t.market.failing.add('BKUP');
+    const f = t.fundamentals as unknown as { getQuote?: (s: string) => Promise<unknown> };
+    f.getQuote = async (symbol: string) => ({ symbol, name: null, exchange: null, currency: 'USD', price: 42, open: null, high: null, low: null, previousClose: 40, change: 2, changePct: 0.05, volume: null, isMarketOpen: null, freshness: 'delayed', provider: 'Finnhub', asOf: FIXTURE_NOW.toISOString(), retrievedAt: FIXTURE_NOW.toISOString() });
+    try {
+      const q = await t.ctx.markets.quote('BKUP');
+      expect(q).toMatchObject({ price: 42, provider: 'Finnhub' });
+    } finally {
+      delete f.getQuote;
+      t.market.failing.delete('BKUP');
+    }
+  });
+});

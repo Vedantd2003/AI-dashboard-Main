@@ -26,9 +26,9 @@ export async function runSelfTest(ctx: AppContext) {
   const key = d.config.TWELVE_DATA_API_KEY ?? '';
   logger.info({ selfTest: { twelveDataKey: { length: key.length, trimmedLength: key.trim().length, hex32: /^[0-9a-f]{32}$/i.test(key.trim()) } } }, 'self-test: Twelve Data key shape (value not logged)');
   if (d.market) {
-    await check('twelve_data.quote AAPL', async () => {
+    await check('markets.quote AAPL (Twelve Data, Finnhub backup)', async () => {
       const q = await m.quote('AAPL');
-      return `price ${q.price} ${q.currency} asOf ${q.asOf} (${q.freshness})`;
+      return `${q.provider}: price ${q.price} ${q.currency} asOf ${q.asOf} (${q.freshness})`;
     });
     await check('twelve_data.history MSFT 1M', async () => {
       const h = await m.history('MSFT', '1M');
