@@ -152,6 +152,11 @@ export function dataOnlyReport(symbols: string[], summaries: Record<string, Seri
   };
 }
 
+type RunOpts = { userId: Types.ObjectId | null; kind?: 'research' | 'daily_brief' | 'weekly_digest'; title?: string };
+
+/** A run still marked running after this long was interrupted (e.g. the instance restarted). */
+export const STALE_RUN_MS = 5 * 60_000;
+
 export class ResearchService {
   constructor(
     private readonly deps: Deps,
@@ -166,8 +171,18 @@ export class ResearchService {
     }
   }
 
-  async run(input: ResearchInput, opts: { userId: Types.ObjectId | null; kind?: 'research' | 'daily_brief' | 'weekly_digest'; title?: string }) {
+  /**
+   * Starts a run and returns immediately; the pipeline continues in the background. Used by the web app so a
+   * long model call never sits behind an HTTP proxy timeout — the client polls GET /research/runs/:id.
+   */
+  async start(input: ResearchInput, opts: RunOpts) {
     const run = await ResearchRun.create({ userId: opts.userId, request: input, status: 'running', startedAt: this.deps.now(), steps: [] });
+    this.run(input, opts, run).catch((e: Error) => this.deps.logger.warn({ runId: String(run._id), err: e.message }, 'background research run failed'));
+    return run;
+  }
+
+  async run(input: ResearchInput, opts: RunOpts, existing?: InstanceType<typeof ResearchRun>) {
+    const run = existing ?? (await ResearchRun.create({ userId: opts.userId, request: input, status: 'running', startedAt: this.deps.now(), steps: [] }));
     const steps: { name: string; status: 'ok' | 'skipped' | 'failed'; detail: string; ms: number }[] = [];
     let t = Date.now();
     const log = (name: string, status: 'ok' | 'skipped' | 'failed', detail: string) => {

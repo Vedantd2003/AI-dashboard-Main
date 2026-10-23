@@ -11,6 +11,9 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@alphapulse/shared'],
+  // The rewrite proxy aborts upstream requests after 30 s by default. Research runs are asynchronous now, but other
+  // calls (a cold API instance on Render's free plan, RSS imports, PDF extraction) can still take longer.
+  experimental: { proxyTimeout: 120_000 },
   async rewrites() {
     return [{ source: '/api/v1/:path*', destination: `${API_BASE_URL}/api/v1/:path*` }];
   },

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleDashed, XCircle } from 'lucide-react';
 import { normalizeSymbols } from '@alphapulse/shared';
@@ -34,6 +34,7 @@ interface Caps {
 interface Run {
   id: string;
   status: string;
+  reportId?: string | null;
   steps: { name: string; status: 'ok' | 'skipped' | 'failed'; detail: string; ms: number }[];
   error: string | null;
 }
@@ -75,13 +76,22 @@ function Analyst() {
   const uploads = useQuery({ queryKey: ['documents', 'mine'], queryFn: () => api.get<Paged<Doc>>('/research/documents?mine=true&kind=upload&pageSize=50') });
   const parsed = normalizeSymbols(symbols.split(/[\s,]+/).filter(Boolean));
 
-  const run = useMutation({
-    mutationFn: (body: object) => api.post<{ runId: string; reportId: string; report: Report }>('/research', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reports'] }),
+  // The run starts asynchronously (202) and is polled, so a long model call never hits a proxy timeout.
+  const start = useMutation({ mutationFn: (body: object) => api.post<{ runId: string; status: string }>('/research?mode=async', body) });
+  const runId = start.data?.runId;
+  const runDetail = useQuery({
+    queryKey: ['run', runId],
+    queryFn: () => api.get<Run>(`/research/runs/${runId}`),
+    enabled: !!runId,
+    refetchInterval: (q) => (q.state.data && q.state.data.status !== 'running' ? false : 2_000),
   });
-  const runId = run.data?.runId;
-  const runDetail = useQuery({ queryKey: ['run', runId], queryFn: () => api.get<Run>(`/research/runs/${runId}`), enabled: !!runId });
-  const lastRuns = useQuery({ queryKey: ['runs'], queryFn: () => api.get<Paged<Run>>('/research/runs?pageSize=1'), enabled: run.isError });
+  const reportId = runDetail.data?.status === 'succeeded' ? runDetail.data.reportId : null;
+  const report = useQuery({ queryKey: ['report', reportId], queryFn: () => api.get<Report>(`/reports/${reportId}`), enabled: !!reportId });
+  useEffect(() => {
+    if (reportId) void qc.invalidateQueries({ queryKey: ['reports'] });
+  }, [reportId, qc]);
+  const running = start.isPending || (!!runId && (!runDetail.data || runDetail.data.status === 'running' || (!!reportId && report.isPending)));
+  const failedRun = runDetail.data?.status === 'failed' ? runDetail.data : null;
 
   const canRun = parsed.valid.length > 0 && question.trim().length >= 8;
 
@@ -99,7 +109,7 @@ function Analyst() {
             className="flex flex-col gap-4"
             onSubmit={(e) => {
               e.preventDefault();
-              run.mutate({ question: question.trim(), symbols: parsed.valid, task, lookbackDays: lookback, documentIds: docs });
+              start.mutate({ question: question.trim(), symbols: parsed.valid, task, lookbackDays: lookback, documentIds: docs });
             }}
           >
             <Field label="Symbols" htmlFor="an-s" hint="Up to five, separated by commas." error={parsed.invalid.length ? `Not a valid symbol: ${parsed.invalid.join(', ')}` : undefined}>
@@ -147,7 +157,7 @@ function Analyst() {
                 </div>
               </fieldset>
             )}
-            <Button type="submit" variant="primary" loading={run.isPending} disabled={!canRun} disabledReason="Add at least one valid symbol and a question of 8+ characters">
+            <Button type="submit" variant="primary" loading={running} disabled={!canRun} disabledReason="Add at least one valid symbol and a question of 8+ characters">
               Run research
             </Button>
             {caps.data && (
@@ -159,28 +169,31 @@ function Analyst() {
         </Panel>
 
         <div className="min-w-0">
-          {run.isPending ? (
-            <Panel>
-              <Spinner label="Collecting data and sources, then writing the note. This can take up to a minute." />
-            </Panel>
-          ) : run.isError ? (
-            <div className="flex flex-col gap-4">
-              <ErrorState error={run.error} />
-              {run.error instanceof ApiError && run.error.status >= 500 && lastRuns.data?.items[0] && (
-                <Panel title="What happened">
-                  <Steps run={lastRuns.data.items[0]} />
-                </Panel>
-              )}
-            </div>
-          ) : run.data ? (
-            <div className="flex flex-col gap-4">
-              {runDetail.data && (
-                <Panel title="Pipeline steps" action={<Link href={`/app/reports/${run.data.reportId}`} className="text-sm text-info hover:underline">Open full report</Link>}>
+          {running ? (
+            <Panel title="Working on it">
+              <Spinner label="Collecting data and sources, then writing the note. This usually takes 20–60 seconds." />
+              {!!runDetail.data?.steps.length && (
+                <div className="mt-4">
                   <Steps run={runDetail.data} />
-                </Panel>
+                </div>
               )}
+            </Panel>
+          ) : start.isError || runDetail.isError || report.isError ? (
+            <ErrorState title="Could not run research" error={start.error ?? runDetail.error ?? report.error} />
+          ) : failedRun ? (
+            <div className="flex flex-col gap-4">
+              <ErrorState title="The research run failed" error={new ApiError(502, 'run_failed', failedRun.error ?? 'The research run failed.')} />
+              <Panel title="What happened">
+                <Steps run={failedRun} />
+              </Panel>
+            </div>
+          ) : report.data && runDetail.data ? (
+            <div className="flex flex-col gap-4">
+              <Panel title="Pipeline steps" action={<Link href={`/app/reports/${report.data.id}`} className="text-sm text-info hover:underline">Open full report</Link>}>
+                <Steps run={runDetail.data} />
+              </Panel>
               <Panel>
-                <ReportView report={run.data.report} />
+                <ReportView report={report.data} />
               </Panel>
             </div>
           ) : (

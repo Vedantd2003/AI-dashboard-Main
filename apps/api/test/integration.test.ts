@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { signPayload } from '../src/lib/crypto.js';
-import { Alert, AlertEvent, AuditEvent, Notification, ResearchReport, Session, SourceDocument, User, WorkflowDefinition, WorkflowExecution } from '../src/models/index.js';
+import { Alert, AlertEvent, AuditEvent, Notification, ResearchReport, ResearchRun, Session, SourceDocument, User, WorkflowDefinition, WorkflowExecution } from '../src/models/index.js';
 import { upsertSource } from '../src/services/ingestion.js';
 import { buildTestApp, client, FIXTURE_NOW, registered, resetDb, startDb, stopDb, type TestApp } from './helpers.js';
 
@@ -376,6 +376,45 @@ describe('research pipeline', () => {
     // persisted & retrievable
     const got = await c.get(`/reports/${r.body.reportId}`);
     expect(got.body.keyFindings[0].citations[0].evidence).toMatch(/12 percent/);
+  });
+
+  it('async mode returns 202 immediately and the run can be polled to its report', async () => {
+    const { c } = await registered(t.app);
+    t.llm.responses.push(goodOutput('S1', 'quarterly revenue rose 12 percent to $4.2 billion'));
+    const r = await c.post('/research?mode=async', { question: 'What changed for Acme this week?', symbols: ['ACME'] });
+    expect(r.status).toBe(202);
+    expect(r.body.status).toBe('running');
+    let run = (await c.get(`/research/runs/${r.body.runId}`)).body;
+    for (let i = 0; i < 50 && run.status === 'running'; i++) {
+      await new Promise((res) => setTimeout(res, 50));
+      run = (await c.get(`/research/runs/${r.body.runId}`)).body;
+    }
+    expect({ status: run.status, error: run.error }).toEqual({ status: 'succeeded', error: null });
+    const rep = await c.get(`/reports/${run.reportId}`);
+    expect(rep.status).toBe(200);
+    expect(rep.body.citationStats.verified).toBe(1);
+  });
+
+  it('async mode records model failures on the run instead of hanging', async () => {
+    const { c } = await registered(t.app);
+    t.llm.responses.push('nope', 'still nope');
+    const r = await c.post('/research?mode=async', { question: 'Summarize Acme news', symbols: ['ACME'] });
+    expect(r.status).toBe(202);
+    let run = (await c.get(`/research/runs/${r.body.runId}`)).body;
+    for (let i = 0; i < 50 && run.status === 'running'; i++) {
+      await new Promise((res) => setTimeout(res, 50));
+      run = (await c.get(`/research/runs/${r.body.runId}`)).body;
+    }
+    expect(run.status).toBe('failed');
+    expect(run.error).toMatch(/validation twice/);
+  });
+
+  it('marks a run interrupted by a restart as failed when polled', async () => {
+    const { c, user } = await registered(t.app);
+    const stale = await ResearchRun.create({ userId: user.id, request: { question: 'x', symbols: ['ACME'] }, status: 'running', startedAt: new Date(FIXTURE_NOW.getTime() - 10 * 60_000), steps: [] });
+    const run = (await c.get(`/research/runs/${stale._id}`)).body;
+    expect(run.status).toBe('failed');
+    expect(run.error).toMatch(/interrupted/);
   });
 
   it('repairs once on invalid output, then fails the run cleanly', async () => {

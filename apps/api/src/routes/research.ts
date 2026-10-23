@@ -8,6 +8,7 @@ import { notFound } from '../lib/errors.js';
 import { body, params, query } from '../lib/validate.js';
 import { me, requireAuth } from '../middleware/auth.js';
 import { ResearchReport, ResearchRun, SourceDocument } from '../models/index.js';
+import { STALE_RUN_MS } from '../services/research.js';
 import { ingestRssFeed, ingestUpload, UPLOAD_LIMIT_BYTES } from '../services/ingestion.js';
 
 const idParam = z.object({ id: objectIdSchema });
@@ -32,6 +33,10 @@ export function researchRouter(ctx: AppContext) {
     const input = body(req, researchRequestSchema);
     const { valid } = normalizeSymbols(input.symbols);
     await ctx.research.assertWithinLimit(me(req)._id);
+    if (req.query.mode === 'async') {
+      const run = await ctx.research.start({ ...input, symbols: valid }, { userId: me(req)._id });
+      return res.status(202).json({ runId: String(run._id), status: 'running' });
+    }
     const { run, report } = await ctx.research.run({ ...input, symbols: valid }, { userId: me(req)._id });
     res.status(201).json({ runId: String(run._id), reportId: String(report._id), report: { ...report.toObject(), id: String(report._id) } });
   });
@@ -48,8 +53,16 @@ export function researchRouter(ctx: AppContext) {
 
   r.get('/runs/:id', async (req, res) => {
     const { id } = params(req, idParam);
-    const run = await ResearchRun.findOne({ _id: id, userId: me(req)._id }).lean();
+    let run = await ResearchRun.findOne({ _id: id, userId: me(req)._id }).lean();
     if (!run) throw notFound('Research run');
+    if (run.status === 'running' && run.startedAt && ctx.deps.now().getTime() - new Date(run.startedAt).getTime() > STALE_RUN_MS) {
+      run =
+        (await ResearchRun.findOneAndUpdate(
+          { _id: id, status: 'running' },
+          { $set: { status: 'failed', error: 'The run was interrupted before it finished (the server restarted). Please run it again.', finishedAt: ctx.deps.now() } },
+          { returnDocument: 'after' },
+        ).lean()) ?? run;
+    }
     res.json({ ...run, id: String(run._id) });
   });
 

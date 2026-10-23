@@ -19,7 +19,7 @@ export function EmptyState({ title, children, action, icon }: { title: string; c
 }
 
 /** Distinguishes "not configured" (a setup task) from real failures (retryable). */
-export function ErrorState({ error, onRetry, compact }: { error: unknown; onRetry?: () => void; compact?: boolean }) {
+export function ErrorState({ error, onRetry, compact, title }: { error: unknown; onRetry?: () => void; compact?: boolean; title?: string }) {
   const e = error instanceof ApiError ? error : null;
   if (e?.notConfigured) return <NotConfigured message={e.message} hint={e.hint} compact={compact} />;
   const message = e?.message ?? (error instanceof Error ? error.message : 'Something went wrong.');
@@ -28,7 +28,7 @@ export function ErrorState({ error, onRetry, compact }: { error: unknown; onRetr
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-down" aria-hidden />
         <div>
-          <p className="text-sm font-medium text-ink">{e?.status === 429 ? 'Rate limit reached' : 'Could not load this'}</p>
+          <p className="text-sm font-medium text-ink">{title ?? (e?.status === 429 ? 'Rate limit reached' : 'Could not load this')}</p>
           <p className="text-sm text-ink-2">{message}</p>
         </div>
       </div>
