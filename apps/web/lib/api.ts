@@ -27,15 +27,45 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const isGatewayError = (status: number) => status === 502 || status === 503 || status === 504;
 const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 15_000, 20_000];
 
+const isUnreachable = (e: unknown) => (e instanceof ApiError && e.code === 'bad_response' && (isGatewayError(e.status) || e.status === 500)) || e instanceof TypeError;
+
+let waking: Promise<boolean> | null = null;
+/**
+ * Resolves once the API answers its health check (true), or after ~90 s (false). On Render's free plan the web app
+ * and the API sleep independently, so opening a page does not wake the API; call this early to start it.
+ */
+export function wakeApi(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(true);
+  waking ??= (async () => {
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch('/api/v1/health', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        if (res.ok && (res.headers.get('content-type') ?? '').includes('application/json')) return true;
+      } catch {
+        /* still waking */
+      }
+      await sleep(3_000);
+    }
+    return false;
+  })().finally(() => setTimeout(() => (waking = null), 60_000));
+  return waking;
+}
+
 async function request<T>(method: Method, path: string, body?: unknown, init?: RequestInit): Promise<T> {
-  // GETs are safe to repeat, so ride out a cold start (about a minute on Render's free plan) instead of failing.
   for (let attempt = 0; ; attempt++) {
     try {
       return await once<T>(method, path, body, init);
     } catch (e) {
-      const retryable = method === 'GET' && attempt < RETRY_DELAYS_MS.length && ((e instanceof ApiError && e.code === 'bad_response' && isGatewayError(e.status)) || e instanceof TypeError);
-      if (!retryable) throw e;
-      await sleep(RETRY_DELAYS_MS[attempt]!);
+      if (!isUnreachable(e)) throw e;
+      if (method === 'GET') {
+        // GETs are safe to repeat: ride out a cold start instead of failing.
+        if (attempt >= RETRY_DELAYS_MS.length) throw e;
+        await sleep(RETRY_DELAYS_MS[attempt]!);
+      } else {
+        // A gateway error means the sleeping API never received the request. Wait until it is up, then send it once more.
+        if (attempt >= 1 || !(await wakeApi())) throw e;
+      }
     }
   }
 }

@@ -1,9 +1,9 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Toaster } from 'sonner';
-import { ApiError } from '@/lib/api';
+import { ApiError, wakeApi } from '@/lib/api';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -19,6 +19,10 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }),
   );
+  // Start waking the API the moment any page opens, so it is ready by the time a form is submitted.
+  useEffect(() => {
+    void wakeApi();
+  }, []);
   return (
     <QueryClientProvider client={client}>
       {children}

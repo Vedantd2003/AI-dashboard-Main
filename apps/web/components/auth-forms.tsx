@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,21 @@ import { forgotPasswordSchema, loginSchema, passwordSchema, registerSchema } fro
 import { api, ApiError } from '@/lib/api';
 import { Logo } from './logo';
 import { Button, Field, Input } from './ui/primitives';
+
+/** Shown when a submit takes long — almost always the free-plan API waking from sleep. */
+function SlowNote({ pending }: { pending: boolean }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!pending) return setSlow(false);
+    const t = setTimeout(() => setSlow(true), 4_000);
+    return () => clearTimeout(t);
+  }, [pending]);
+  return slow ? (
+    <p role="status" className="text-caption text-ink-3">
+      Waking up the server. This can take up to a minute after it has been idle.
+    </p>
+  ) : null;
+}
 
 export function AuthFrame({ title, intro, children, footer }: { title: string; intro?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
@@ -73,6 +88,7 @@ export function LoginForm() {
           Forgot your password?
         </Link>
       </div>
+      <SlowNote pending={f.formState.isSubmitting} />
       <Button type="submit" variant="primary" loading={f.formState.isSubmitting}>
         Sign in
       </Button>
@@ -111,6 +127,7 @@ export function RegisterForm() {
         <Input id="password" type="password" autoComplete="new-password" aria-invalid={!!f.formState.errors.password} {...f.register('password')} />
       </Field>
       <p className="text-caption text-ink-3">AlphaPulse is a research tool. Nothing it produces is financial advice, and it never places trades.</p>
+      <SlowNote pending={f.formState.isSubmitting} />
       <Button type="submit" variant="primary" loading={f.formState.isSubmitting}>
         Create account
       </Button>
@@ -148,6 +165,7 @@ export function ForgotForm() {
       <Field label="Email" htmlFor="email" error={f.formState.errors.email?.message}>
         <Input id="email" type="email" autoComplete="email" {...f.register('email')} />
       </Field>
+      <SlowNote pending={f.formState.isSubmitting} />
       <Button type="submit" variant="primary" loading={f.formState.isSubmitting}>
         Send reset link
       </Button>
@@ -184,6 +202,7 @@ export function ResetForm() {
       <Field label="Confirm new password" htmlFor="confirm" error={f.formState.errors.confirm?.message}>
         <Input id="confirm" type="password" autoComplete="new-password" {...f.register('confirm')} />
       </Field>
+      <SlowNote pending={f.formState.isSubmitting} />
       <Button type="submit" variant="primary" loading={f.formState.isSubmitting}>
         Set new password
       </Button>
