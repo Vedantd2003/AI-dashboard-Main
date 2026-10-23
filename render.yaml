@@ -1,0 +1,99 @@
+# Render Blueprint for AlphaPulse AI.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Services:
+#   alphapulse-api  — Express API (Node). Health check: /api/v1/health
+#   alphapulse-web  — Next.js app. Proxies /api/v1/* to the API so the session cookie is first-party.
+# External (not provisioned here): MongoDB Atlas (MONGODB_URI), optional n8n instance, optional Key Value/Redis.
+#
+# Free-plan notes (render.com/docs/free): free web services sleep after 15 minutes without traffic and take about
+# a minute to wake. The in-process scheduler therefore does NOT run reliably on the free plan; trigger workflows
+# from n8n (which wakes the API) or move the API to a paid instance and set SCHEDULER_ENABLED=true.
+# Free web services can't receive private-network traffic, so API_BASE_URL must be the API's public URL.
+
+services:
+  - type: web
+    name: alphapulse-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run build:api
+    startCommand: npm run start -w @alphapulse/api
+    healthCheckPath: /api/v1/health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/shared/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      - key: MONGOMS_DISABLE_POSTINSTALL
+        value: '1'
+      - key: TRUST_PROXY
+        value: '1'
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: APP_BASE_URL
+        sync: false # public URL of alphapulse-web, e.g. https://alphapulse-web.onrender.com
+      - key: API_PUBLIC_URL
+        sync: false # public URL of this service, used in the OpenAPI document
+      - key: SCHEDULER_ENABLED
+        value: 'false'
+      - key: TWELVE_DATA_API_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: SEC_USER_AGENT
+        sync: false # "AlphaPulse your-email@example.com"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: N8N_WEBHOOK_SECRET
+        sync: false
+      - key: N8N_BASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RESEARCH_DAILY_LIMIT_PER_USER
+        value: '20'
+
+  - type: web
+    name: alphapulse-web
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev && npm run build:web
+    startCommand: npm run start -w @alphapulse/web
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/web/**
+        - packages/shared/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      - key: MONGOMS_DISABLE_POSTINSTALL
+        value: '1'
+      - key: NEXT_TELEMETRY_DISABLED
+        value: '1'
+      - key: API_BASE_URL
+        sync: false # public URL of alphapulse-api, e.g. https://alphapulse-api.onrender.com — needed at build AND run time

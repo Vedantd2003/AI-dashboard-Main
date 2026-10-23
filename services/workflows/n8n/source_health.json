@@ -1,0 +1,115 @@
+{
+  "name": "AlphaPulse — Data source health monitor",
+  "active": false,
+  "settings": {
+    "timezone": "UTC",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "54a7d8b1-04c0-4f67-a0e1-8dcd2bf1fbb5",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ac687006-34ce-499d-881b-fba18ee1a2e7",
+      "name": "Sign request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Signs the request exactly as the API verifies it:\n// signature = \"sha256=\" + HMAC_SHA256(N8N_WEBHOOK_SECRET, timestamp + \".\" + rawBody)\n// Requires NODE_FUNCTION_ALLOW_BUILTIN=crypto and the env vars below on the n8n instance.\nconst crypto = require('crypto');\nconst secret = $env.ALPHAPULSE_WEBHOOK_SECRET;\nif (!secret) throw new Error('ALPHAPULSE_WEBHOOK_SECRET is not set on the n8n instance');\nconst body = JSON.stringify({ workflow: 'source_health' });\nconst timestamp = String(Date.now());\nconst signature = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.' + body).digest('hex');\nreturn [{ json: { body, timestamp, signature } }];"
+      }
+    },
+    {
+      "id": "24281cc5-67ca-4d17-8e55-377b6d6d7206",
+      "name": "Run in AlphaPulse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ALPHAPULSE_API_URL }}/api/v1/hooks/n8n/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AlphaPulse-Timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "X-AlphaPulse-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Sign request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign request": {
+      "main": [
+        [
+          {
+            "node": "Run in AlphaPulse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

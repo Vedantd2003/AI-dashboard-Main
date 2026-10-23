@@ -1,0 +1,37 @@
+# Local development stack: MongoDB, optional Redis, optional self-hosted n8n.
+#   docker compose up -d mongo            # just the database
+#   docker compose --profile n8n up -d    # plus n8n at http://localhost:5678
+# Run the API and web app with `npm run dev:api` and `npm run dev:web`.
+services:
+  mongo:
+    image: mongo:8.0
+    ports: ['27017:27017']
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', 'db.adminCommand("ping")']
+      interval: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    profiles: [redis]
+    ports: ['6379:6379']
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    profiles: [n8n]
+    ports: ['5678:5678']
+    environment:
+      - GENERIC_TIMEZONE=America/New_York
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # Must equal the API's N8N_WEBHOOK_SECRET
+      - ALPHAPULSE_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET:-change-me}
+      # From inside the container the host API is reachable at host.docker.internal
+      - ALPHAPULSE_API_URL=${ALPHAPULSE_API_URL:-http://host.docker.internal:4000}
+    extra_hosts: ['host.docker.internal:host-gateway']
+    volumes: [n8n-data:/home/node/.n8n]
+
+volumes:
+  mongo-data:
+  n8n-data:
