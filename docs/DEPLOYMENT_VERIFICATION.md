@@ -5,22 +5,31 @@ anything not executed is marked as such. Nothing here was inferred from a succes
 
 ## Summary
 
+Live deployment (Render, free plan, Singapore), deployed from branch `alphapulse-ai` of
+`Vedantd2003/AI-dashboard-Main` at commit `7164123`.
+
+| Service | URL | Status |
+|---|---|---|
+| Web | https://alphapulse-web.onrender.com | **Live**: landing page renders, no errors |
+| API | https://alphapulse-api.onrender.com | **Live**: logs show `connected to MongoDB` and `AlphaPulse API listening` |
+| API docs | https://alphapulse-api.onrender.com/api/v1/docs | Served by the live API |
+
 | # | Check | Status | Evidence |
 |---|---|---|---|
-| 1 | GitHub repository exists | **Not yet**: needs the owner to create it | Connected account `Vedantd2003` has no `alphapulse-ai` repo; the sandbox cannot create repositories |
-| 2 | Latest code pushed | **Not yet**: blocked by #1 | 11 local commits on `main` |
-| 3 | Render frontend deployed | **Not yet**: blocked by #1 and MongoDB Atlas URI | Render workspace `My Workspace` is reachable through the Render connector |
-| 4 | Render API deployed | **Not yet**: same | — |
-| 5 | Public frontend URL responds | Not applicable until #3 | — |
-| 6 | API health endpoint responds | **Verified locally** | `GET /api/v1/health` → 200 `{"status":"ok","database":{"state":"connected"}}` from the compiled `dist/server.js` against MongoDB 8.0.23 |
-| 7 | Database connectivity | **Verified locally** | Same; indexes synced at boot; 45 integration tests on a real `mongod` |
-| 8 | Authentication | **Verified locally** (API tests + browser e2e) | Register, login, logout, expiry, reset, CSRF, isolation |
-| 9 | Market provider connectivity | **Not verified against real providers**: no keys in sandbox and outbound access blocked | Adapters verified with mocked HTTP; UI verified with the fixture providers |
-| 10 | AI research | **Pipeline verified with a deterministic fake model**; real OpenRouter not called | Citation verification, downgrade of fabricated evidence, repair-once, data-only fallback |
-| 11 | Source citations render | **Verified** in the browser | Playwright opens a citation and asserts the passage appears |
-| 12 | Scheduled workflows via n8n | **Signing and webhook verified**; no n8n instance was run | The generated n8n Code node was executed verbatim against the API: 409 when not enabled, 200 succeeded, then 200 skipped as duplicate |
-| 13 | Notifications | **In-app verified**; email/webhook verified with mocked providers only | Delivery statuses `delivered` / `skipped` / `failed` asserted per channel |
-| 14 | Production build and automated tests | **Verified** | See below |
+| 1 | GitHub repository exists | **Verified** | Branch `alphapulse-ai` on `Vedantd2003/AI-dashboard-Main` (the intended `alphapulse-ai` repo was not reachable by this session) |
+| 2 | Latest code pushed | **Verified** | Remote branch hash equals local `HEAD` |
+| 3 | Render frontend deployed | **Verified** | Deploy `dep-dbdncfjrjlhs73dt9s0g` status `live` |
+| 4 | Render API deployed | **Verified** | Deploy `dep-dbdncc8n74is739d39lg` status `live` |
+| 5 | Public frontend URL responds | **Verified** | External fetch of `/` returned the landing page |
+| 6 | API health endpoint responds | **Verified** | `GET https://alphapulse-web.onrender.com/api/v1/health` (through the web proxy) → status `ok` |
+| 7 | Database connectivity (Atlas) | **Verified** | Health reports database `connected`, ping 63 ms |
+| 8 | Authentication in production | **Not yet observed live** | Verified locally and in e2e; first live sign-up is the next check |
+| 9 | Market provider connectivity | Not configured | No `TWELVE_DATA_API_KEY` / `FINNHUB_API_KEY` |
+| 10 | AI research | Not configured | No `OPENROUTER_API_KEY`; reports run in data-only mode |
+| 11 | Source citations render | Verified in browser e2e (fixture data) | — |
+| 12 | Scheduled workflows via n8n | Not configured | No n8n instance or `N8N_WEBHOOK_SECRET` |
+| 13 | Notifications | In-app only | No email provider configured |
+| 14 | Production build and automated tests | **Verified** | See below; Render built both services successfully |
 
 ## Test results (executed)
 
@@ -52,11 +61,7 @@ After fixes: no horizontal overflow on any route at either width; the only HTTP 
 
 ## Remaining setup
 
-Requires the owner:
-1. Create an empty GitHub repository (e.g. `Vedantd2003/alphapulse-ai`); the code can then be pushed from here.
-2. Create a MongoDB Atlas cluster and provide `MONGODB_URI`.
-3. Provide provider keys as desired: `TWELVE_DATA_API_KEY`, `FINNHUB_API_KEY`, `SEC_USER_AGENT`,
+1. Optional provider keys (Render → alphapulse-api → Environment): `TWELVE_DATA_API_KEY`, `FINNHUB_API_KEY`,
    `OPENROUTER_API_KEY`, `RESEND_API_KEY` + `EMAIL_FROM`, `N8N_WEBHOOK_SECRET`.
-4. Optionally host n8n (see `services/workflows/README.md`).
-
-Once 1 and 2 exist, the Render services can be created on the free plan and checks 3–5 and 9–13 run against the live URLs.
+2. Rotate the Atlas database user password (it was shared in chat) and update `MONGODB_URI` on the API service.
+3. Move the code to its own repository when one is reachable, and repoint both Render services to it.
