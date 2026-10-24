@@ -70,9 +70,10 @@ async function request<T>(method: Method, path: string, body?: unknown, init?: R
     } catch (e) {
       if (!isUnreachable(e)) throw e;
       if (method === 'GET') {
-        // GETs are safe to repeat: ride out a cold start instead of failing.
+        // GETs are safe to repeat: wake the API, wait for it (up to ~2 min), then retry a few times.
         if (attempt >= RETRY_DELAYS_MS.length) throw e;
-        await sleep(RETRY_DELAYS_MS[attempt]!);
+        if (attempt === 0) await wakeApi();
+        else await sleep(RETRY_DELAYS_MS[attempt]!);
       } else {
         // A gateway error means the sleeping API never received the request. Wait until it is up, then send it once more.
         if (attempt >= 1 || !(await wakeApi())) throw e;
