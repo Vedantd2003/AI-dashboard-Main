@@ -11,6 +11,9 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@alphapulse/shared'],
+  // The API's public URL is not a secret. The browser uses it only to wake a sleeping free-plan API
+  // (see wakeApi in lib/api.ts); all real API calls still go through the same-origin /api/v1 proxy.
+  env: { NEXT_PUBLIC_API_ORIGIN: API_BASE_URL.startsWith('https://') ? API_BASE_URL : '' },
   // The rewrite proxy aborts upstream requests after 30 s by default. Research runs are asynchronous now, but other
   // calls (a cold API instance on Render's free plan, RSS imports, PDF extraction) can still take longer.
   experimental: { proxyTimeout: 120_000 },

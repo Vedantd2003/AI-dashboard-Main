@@ -29,6 +29,9 @@ const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 15_000, 20_000];
 
 const isUnreachable = (e: unknown) => (e instanceof ApiError && e.code === 'bad_response' && (isGatewayError(e.status) || e.status === 500)) || e instanceof TypeError;
 
+/** Public URL of the API (not a secret), set at build time from API_BASE_URL in next.config.ts. */
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? '';
+
 let waking: Promise<boolean> | null = null;
 /**
  * Resolves once the API answers its health check (true), or after ~90 s (false). On Render's free plan the web app
@@ -37,8 +40,16 @@ let waking: Promise<boolean> | null = null;
 export function wakeApi(): Promise<boolean> {
   if (typeof window === 'undefined') return Promise.resolve(true);
   waking ??= (async () => {
-    const deadline = Date.now() + 90_000;
+    const deadline = Date.now() + 120_000;
+    let lastPoke = 0;
     while (Date.now() < deadline) {
+      // Render only wakes a sleeping service for traffic from the internet; requests the web app proxies from
+      // inside Render don't count. So the browser pokes the API's public URL directly (opaque, no credentials,
+      // nothing is read back), then waits for the proxied health check to answer.
+      if (API_ORIGIN && Date.now() - lastPoke > 10_000) {
+        lastPoke = Date.now();
+        void fetch(`${API_ORIGIN}/api/v1/health`, { mode: 'no-cors', credentials: 'omit', cache: 'no-store' }).catch(() => {});
+      }
       try {
         const res = await fetch('/api/v1/health', { headers: { Accept: 'application/json' }, cache: 'no-store' });
         if (res.ok && (res.headers.get('content-type') ?? '').includes('application/json')) return true;
